@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bulk Video Transcriber</title>
+<meta name="description" content="Free bulk video-to-text transcription that runs entirely in your browser. No uploads, no API keys.">
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #16181d; --muted: #646b78; --border: #e2e5ea;
+    --accent: #4f46e5; --accent-weak: #eef0ff; --ok: #15803d; --err: #b91c1c; --warn: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1115; --panel: #171a21; --text: #e8eaf0; --muted: #9aa2b1; --border: #2a2f3a;
+      --accent: #818cf8; --accent-weak: #22264a; --ok: #4ade80; --err: #f87171; --warn: #fbbf24; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 28px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 14px; }
+  label.f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  select, button { font: inherit; color: var(--text); background: var(--panel);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .drop { border: 2px dashed var(--border); border-radius: 12px; padding: 34px 16px; text-align: center;
+    cursor: pointer; transition: background .15s, border-color .15s; }
+  .drop.over, .drop:hover { border-color: var(--accent); background: var(--accent-weak); }
+  .drop strong { display: block; font-size: 17px; margin-bottom: 4px; }
+  .drop span { color: var(--muted); font-size: 13px; }
+  #status { margin: 14px 0 0; font-size: 13px; color: var(--muted); min-height: 20px; }
+  .bar { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; margin-top: 6px; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 22px 0 10px; }
+  .toolbar .grow { flex: 1; color: var(--muted); font-size: 13px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+  .card header { display: flex; gap: 10px; align-items: center; padding: 12px 14px; flex-wrap: wrap; }
+  .card .name { font-weight: 600; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+  .badge.done { color: var(--ok); border-color: currentColor; }
+  .badge.error { color: var(--err); border-color: currentColor; }
+  .badge.working { color: var(--accent); border-color: currentColor; }
+  .card .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .card .actions button { padding: 5px 10px; font-size: 13px; }
+  .card pre { margin: 0; padding: 14px; border-top: 1px solid var(--border); white-space: pre-wrap;
+    word-wrap: break-word; font: inherit; max-height: 340px; overflow: auto; }
+  .card pre.ts { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  .spin { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent;
+    border-radius: 50%; display: inline-block; animation: s .7s linear infinite; vertical-align: -1px; margin-right: 4px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .note { color: var(--muted); font-size: 12.5px; margin-top: 28px; }
+  .chk { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Bulk Video Transcriber</h1>
+  <p class="sub">Drop in as many videos as you want and get a separate text transcript for each one. It runs in your browser, so your files never leave your computer. Free, with no account and no API key.</p>
+
+  <div class="panel">
+    <div class="controls">
+      <label class="f">Model
+        <select id="model">
+          <option value="onnx-community/whisper-tiny">Tiny (fastest, smallest download)</option>
+          <option value="onnx-community/whisper-base" selected>Base (fast and accurate, recommended)</option>
+          <option value="onnx-community/whisper-small">Small (most accurate, slower, big download)</option>
+          <option value="onnx-community/whisper-base.en">Base, English only</option>
+        </select>
+      </label>
+      <label class="f">Spoken language
+        <select id="language">
+          <option value="auto">Auto-detect</option>
+          <option value="english">English</option><option value="hindi">Hindi</option>
+          <option value="urdu">Urdu</option><option value="arabic">Arabic</option>
+          <option value="spanish">Spanish</option><option value="french">French</option>
+          <option value="german">German</option><option value="portuguese">Portuguese</option>
+          <option value="italian">Italian</option><option value="russian">Russian</option>
+          <option value="turkish">Turkish</option><option value="indonesian">Indonesian</option>
+          <option value="bengali">Bengali</option><option value="chinese">Chinese</option>
+          <option value="japanese">Japanese</option><option value="korean">Korean</option>
+          <option value="dutch">Dutch</option><option value="polish">Polish</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="drop" class="drop" tabindex="0" role="button" aria-label="Choose video files">
+      <strong>Drop videos here or click to choose</strong>
+      <span>MP4, WebM, MOV, MP3, WAV, M4A and more. Pick as many as you like.</span>
+      <input id="file" type="file" accept="video/*,audio/*" multiple hidden>
+    </div>
+    <div id="status">The model downloads once on first use, then it's cached by your browser.</div>
+    <div class="bar"><i id="barFill"></i></div>
+  </div>
+
+  <div class="toolbar" id="toolbar" hidden>
+    <div class="grow" id="summary"></div>
+    <label class="chk"><input type="checkbox" id="showTs"> Show timestamps</label>
+    <button id="zipTxt">Download all (.txt, zip)</button>
+    <button id="zipSrt">Download all (.srt, zip)</button>
+    <button id="clear">Clear</button>
+  </div>
+  <div id="list"></div>
+
+  <p class="note">Speed tip: Chrome or Edge on a computer with a decent graphics card uses WebGPU and is much faster. Other browsers fall back to the CPU, which still works but is slower. Keep this tab open while it works.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
