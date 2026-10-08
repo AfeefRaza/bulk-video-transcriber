@@ -1,7 +1,8 @@
 const $ = (id) => document.getElementById(id);
 const worker = new Worker('worker.js', { type: 'module' });
 
-const jobs = [];          // { id, file, status, text, chunks, el, startedAt, secs }
+const HELPER = 'http://127.0.0.1:8787';
+const jobs = [];          // { id, file | url+title, status, text, chunks, el, secs }
 let nextId = 1;
 let running = false;
 let modelReady = false;
@@ -40,8 +41,15 @@ function setStatus(text, frac) {
 }
 
 // ---------- audio extraction ----------
-async function decodeAudio(file) {
-  const buf = await file.arrayBuffer();
+async function fetchAudio(url) {
+  let r;
+  try { r = await fetch(`${HELPER}/audio?url=${encodeURIComponent(url)}`); }
+  catch { throw new Error("Can't reach the helper. Make sure the helper window is still open."); }
+  if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Download failed'); }
+  return r.arrayBuffer();
+}
+
+async function decodeAudio(buf) {
   const ctx = new AudioContext({ sampleRate: 16000 });
   try {
     const audio = await ctx.decodeAudioData(buf);
@@ -74,7 +82,11 @@ function renderCard(job) {
   el.className = 'card';
   el.innerHTML = `<header><div class="name"></div><span class="badge"></span>
     <div class="actions" hidden><button data-a="copy">Copy</button><button data-a="txt">.txt</button><button data-a="srt">.srt</button></div></header>`;
-  el.querySelector('.name').textContent = job.file.name;
+  if (job.url) {
+    const a = document.createElement('a');
+    a.href = job.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = job.title;
+    el.querySelector('.name').appendChild(a);
+  } else el.querySelector('.name').textContent = job.file.name;
   el.querySelector('.actions').addEventListener('click', (e) => {
     const a = e.target.dataset.a; if (!a) return;
     if (a === 'copy') { navigator.clipboard.writeText(job.text); e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy', 1200); }
@@ -90,7 +102,7 @@ function updateCard(job, el = job.el) {
   b.className = 'badge ' + job.status;
   b.innerHTML = {
     queued: 'Waiting',
-    decoding: '<span class="spin"></span>Extracting audio',
+    decoding: `<span class="spin"></span>${job.url ? 'Downloading audio' : 'Extracting audio'}`,
     working: '<span class="spin"></span>Transcribing',
     done: `Done in ${job.secs}s`,
     error: 'Failed',
@@ -126,16 +138,20 @@ async function run() {
   while ((job = jobs.find((j) => j.status === 'queued'))) {
     const t0 = performance.now();
     job.status = 'decoding'; updateCard(job);
-    let audio;
+    let audio, buf;
     try {
-      audio = await decodeAudio(job.file);
-    } catch {
+      if (job.url) setStatus(`Downloading audio for ${job.title}…`, null);
+      buf = job.url ? await fetchAudio(job.url) : await job.file.arrayBuffer();
+      audio = await decodeAudio(buf);
+    } catch (err) {
       job.status = 'error';
-      job.text = "Couldn't read the audio track. The file may have no sound or use a codec this browser can't decode (try MP4 or WebM).";
+      job.text = !buf ? "Couldn't download this video: " + err.message
+        : "Couldn't read the audio track. The file may have no sound or use a codec this browser can't decode (try MP4 or WebM).";
       updateCard(job); updateSummary(); continue;
     }
+    buf = null;
     job.status = 'working'; updateCard(job);
-    setStatus(`Transcribing ${job.file.name} (${fmtDur(audio.length / 16000)} of audio)…`, null);
+    setStatus(`Transcribing ${job.url ? job.title : job.file.name} (${fmtDur(audio.length / 16000)} of audio)…`, null);
     const r = await call({ type: 'transcribe', id: job.id, audio, model: $('model').value, language: $('language').value }, job.id);
     job.secs = ((performance.now() - t0) / 1000).toFixed(1);
     if (r.type === 'error') { job.status = 'error'; job.text = 'Transcription failed: ' + r.message; }
@@ -162,7 +178,10 @@ function toSrt(chunks) {
   return chunks.map((c, i) => { const [s, e] = chunkTimes(chunks, i); return `${i + 1}\n${srtTime(s)} --> ${srtTime(e)}\n${c.text.trim()}\n`; }).join('\n');
 }
 function transcriptText(job) { return $('showTs').checked ? timestamped(job.chunks) : job.text; }
-function baseName(job) { return job.file.name.replace(/\.[^.]+$/, ''); }
+function baseName(job) {
+  if (job.file) return job.file.name.replace(/\.[^.]+$/, '');
+  return job.title.replace(/[\\/:*?"<>|#\s]+/g, ' ').trim().slice(0, 80) || 'video';
+}
 function download(name, text) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
@@ -198,4 +217,88 @@ $('zipSrt').addEventListener('click', () => zipAll('srt'));
 $('clear').addEventListener('click', () => {
   for (let i = jobs.length - 1; i >= 0; i--) if (jobs[i].status === 'done' || jobs[i].status === 'error') { jobs[i].el.remove(); jobs.splice(i, 1); }
   updateSummary();
+});
+
+// ---------- from a link ----------
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+  $('tab-files').hidden = t.dataset.tab !== 'files';
+  $('tab-link').hidden = t.dataset.tab !== 'link';
+}));
+
+let found = [];
+$('copyCmd').addEventListener('click', (e) => {
+  navigator.clipboard.writeText($('cmdText').textContent);
+  e.target.textContent = 'Copied'; setTimeout(() => (e.target.textContent = 'Copy'), 1200);
+});
+
+async function helperUp() {
+  try { const r = await fetch(HELPER + '/health'); return r.ok; } catch { return false; }
+}
+
+$('findBtn').addEventListener('click', async () => {
+  const links = $('links').value.split(/\s+/).filter((s) => /^https?:\/\//i.test(s));
+  if (!links.length) { $('helperState').textContent = 'Paste a link that starts with https://'; return; }
+  $('findBtn').disabled = true;
+  $('helperState').innerHTML = '<span class="spin"></span>Connecting to helper…';
+  if (!(await helperUp())) {
+    $('setup').hidden = false;
+    $('helperState').textContent = 'Helper not running. Follow the steps below, then click Find videos again.';
+    $('findBtn').disabled = false;
+    return;
+  }
+  $('setup').hidden = true;
+  found = [];
+  const titles = [], errors = [];
+  for (const link of links) {
+    $('helperState').innerHTML = '<span class="spin"></span>Finding videos (big channels can take a minute)…';
+    try {
+      const r = await fetch(`${HELPER}/list?url=${encodeURIComponent(link)}`);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error);
+      found.push(...j.entries);
+      if (j.title) titles.push(j.title);
+    } catch (e) { errors.push(`${link}: ${e.message}`); }
+  }
+  const seen = new Set();
+  found = found.filter((v) => !seen.has(v.url) && seen.add(v.url));
+  $('findBtn').disabled = false;
+  $('helperState').textContent = errors.join(' | ');
+  $('found').hidden = !found.length;
+  if (!found.length) { if (!errors.length) $('helperState').textContent = 'No videos found at that link.'; return; }
+  $('foundTitle').textContent = `${titles.join(', ') || 'Videos'}: ${found.length} video${found.length === 1 ? '' : 's'}`;
+  $('foundList').innerHTML = '';
+  found.forEach((v, i) => {
+    const l = document.createElement('label');
+    l.innerHTML = `<input type="checkbox" checked data-i="${i}"><span class="t"></span><span class="d"></span>`;
+    l.querySelector('.t').textContent = v.title;
+    l.querySelector('.d').textContent = v.duration ? shortTime(v.duration) : '';
+    $('foundList').appendChild(l);
+  });
+  $('selAll').checked = true;
+  updateQueueBtn();
+});
+
+function selectedFound() { return [...$('foundList').querySelectorAll('input:checked')].map((c) => found[+c.dataset.i]); }
+function updateQueueBtn() {
+  const n = selectedFound().length;
+  $('queueBtn').textContent = `Transcribe ${n} video${n === 1 ? '' : 's'}`;
+  $('queueBtn').disabled = !n;
+}
+$('foundList').addEventListener('change', updateQueueBtn);
+$('selAll').addEventListener('change', (e) => {
+  $('foundList').querySelectorAll('input').forEach((c) => (c.checked = e.target.checked));
+  updateQueueBtn();
+});
+$('queueBtn').addEventListener('click', () => {
+  for (const v of selectedFound()) {
+    const job = { id: nextId++, url: v.url, title: v.title, status: 'queued', text: '', chunks: [] };
+    job.el = renderCard(job);
+    $('list').appendChild(job.el);
+    jobs.push(job);
+  }
+  $('found').hidden = true;
+  updateSummary();
+  run();
+  $('toolbar').scrollIntoView({ behavior: 'smooth' });
 });

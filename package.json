@@ -1,0 +1,8 @@
+{
+  "name": "bulk-video-transcriber-helper",
+  "version": "1.0.0",
+  "description": "Local helper that lets the Bulk Video Transcriber site transcribe whole YouTube channels and Instagram profiles.",
+  "bin": { "bulk-video-transcriber": "helper.js" },
+  "files": ["helper.js"],
+  "license": "MIT"
+}

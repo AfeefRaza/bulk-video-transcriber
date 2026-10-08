@@ -21,3 +21,20 @@ npx http-server -p 8080
 ```
 
 Then open http://localhost:8080.
+
+## Transcribe a whole YouTube channel or Instagram profile
+
+Open the **From a YouTube / Instagram link** tab and paste a channel or profile link (playlists and single video links work too, one per line).
+
+Websites can't download from YouTube or Instagram on their own, so this needs a small free helper running on your computer. It uses [yt-dlp](https://github.com/yt-dlp/yt-dlp), which it downloads automatically. Transcription still happens in the browser.
+
+1. Install [Node.js](https://nodejs.org/) (LTS).
+2. In a terminal, run:
+   ```
+   npx -y github:AfeefRaza/bulk-video-transcriber
+   ```
+3. Leave it open, go back to the site, and click **Find videos**.
+
+**Instagram:** Instagram only shows profiles to logged-in users. To get every video on a profile, export your instagram.com cookies with the *Get cookies.txt LOCALLY* browser extension, save the file as `cookies.txt` in `~/.bulk-transcriber/` (Windows: `C:\Users\YOU\.bulk-transcriber\`), then restart the helper. Keep that file private.
+
+Only download content you have the right to use.

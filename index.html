@@ -56,6 +56,34 @@
   @keyframes s { to { transform: rotate(360deg); } }
   .note { color: var(--muted); font-size: 12.5px; margin-top: 28px; }
   .chk { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); padding: 8px 12px; font-weight: 600; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  textarea { width: 100%; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; resize: vertical; }
+  textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .setup { margin-top: 14px; padding: 14px; border: 1px solid var(--warn); border-radius: 10px; background: var(--bg); font-size: 14px; }
+  .setup p { margin: 6px 0; }
+  .setup ol { margin: 6px 0; padding-left: 20px; }
+  .setup li { margin: 6px 0; }
+  .setup a { color: var(--accent); }
+  .setup code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  .setup details { margin-top: 10px; }
+  .setup summary { cursor: pointer; font-weight: 600; }
+  .cmd { display: flex; gap: 8px; align-items: center; margin-top: 6px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 6px 6px 10px; }
+  .cmd code { flex: 1; overflow-wrap: anywhere; }
+  .cmd button { padding: 4px 10px; font-size: 13px; }
+  .found-head { justify-content: space-between; margin: 16px 0 8px; }
+  .found-list { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; }
+  .found-list label { display: flex; gap: 10px; align-items: center; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 14px; cursor: pointer; }
+  .found-list label:last-child { border-bottom: 0; }
+  .found-list .t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .found-list .d { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .card .name a { color: inherit; text-decoration: none; }
+  .card .name a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -89,10 +117,57 @@
       </label>
     </div>
 
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="files" role="tab">Upload videos</button>
+      <button class="tab" data-tab="link" role="tab">From a YouTube / Instagram link</button>
+    </div>
+
+    <div id="tab-link" hidden>
+      <textarea id="links" rows="3" placeholder="Paste a YouTube channel or Instagram profile link, e.g. https://www.youtube.com/@channel or https://www.instagram.com/username/&#10;Playlists and single video links work too (one per line)."></textarea>
+      <div class="row">
+        <button id="findBtn" class="primary">Find videos</button>
+        <span id="helperState" class="muted"></span>
+      </div>
+
+      <div id="setup" class="setup" hidden>
+        <strong>One-time setup: start the free helper on your computer</strong>
+        <p>Websites aren't allowed to download videos from YouTube or Instagram on their own, so a tiny helper does that part on your PC. Your transcription still happens here.</p>
+        <ol>
+          <li>Install <a href="https://nodejs.org/" target="_blank" rel="noopener">Node.js</a> (LTS) if you don't have it.</li>
+          <li>Open a terminal (Windows: press Start, type <b>cmd</b>, Enter) and run:
+            <div class="cmd"><code id="cmdText">npx -y github:AfeefRaza/bulk-video-transcriber</code><button id="copyCmd">Copy</button></div>
+          </li>
+          <li>Leave that window open and click <b>Find videos</b> again. If your browser asks to allow access to local devices, click Allow.</li>
+        </ol>
+        <details>
+          <summary>Instagram: how to get every video (login needed)</summary>
+          <p>Instagram only shows the latest few posts to people who aren't logged in. To get the whole profile:</p>
+          <ol>
+            <li>Log in to instagram.com in Chrome, Edge or Firefox.</li>
+            <li>Install the <b>Get cookies.txt LOCALLY</b> extension, open instagram.com, and click <b>Export</b>.</li>
+            <li>Rename the file to <code>cookies.txt</code> and put it in the <code>.bulk-transcriber</code> folder in your user folder (Windows: <code>C:\Users\YOUR-NAME\.bulk-transcriber\</code>).</li>
+            <li>Close the helper window and run the command again.</li>
+          </ol>
+          <p class="muted">Keep cookies.txt private: it logs into your account. Downloading lots of posts quickly can get an Instagram account rate-limited, so the helper goes slowly on purpose.</p>
+        </details>
+      </div>
+
+      <div id="found" hidden>
+        <div class="row found-head">
+          <strong id="foundTitle"></strong>
+          <label class="chk"><input type="checkbox" id="selAll" checked> Select all</label>
+        </div>
+        <div id="foundList" class="found-list"></div>
+        <button id="queueBtn" class="primary">Transcribe selected</button>
+      </div>
+    </div>
+
+    <div id="tab-files">
     <div id="drop" class="drop" tabindex="0" role="button" aria-label="Choose video files">
       <strong>Drop videos here or click to choose</strong>
       <span>MP4, WebM, MOV, MP3, WAV, M4A and more. Pick as many as you like.</span>
       <input id="file" type="file" accept="video/*,audio/*" multiple hidden>
+    </div>
     </div>
     <div id="status">The model downloads once on first use, then it's cached by your browser.</div>
     <div class="bar"><i id="barFill"></i></div>
