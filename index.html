@@ -72,6 +72,15 @@
   .setup code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
   .setup details { margin-top: 10px; }
   .setup summary { cursor: pointer; font-weight: 600; }
+  .setup ul { margin: 6px 0; padding-left: 20px; }
+  .helperbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 14px; }
+  .helperbar .htext { flex: 1; min-width: 180px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.on { background: var(--ok); }
+  .dot.off { background: var(--err); }
+  a.btn { font: inherit; border-radius: 8px; padding: 8px 12px; text-decoration: none; display: inline-block; }
+  a.btn.primary { background: var(--accent); color: #fff; font-weight: 600; }
+  .igstate { margin: -4px 0 10px; }
   .cmd { display: flex; gap: 8px; align-items: center; margin-top: 6px; background: var(--panel); border: 1px solid var(--border);
     border-radius: 8px; padding: 6px 6px 6px 10px; }
   .cmd code { flex: 1; overflow-wrap: anywhere; }
@@ -123,6 +132,13 @@
     </div>
 
     <div id="tab-link" hidden>
+      <div class="helperbar">
+        <span class="dot" id="hDot"></span>
+        <span id="hText" class="htext">Checking helper…</span>
+        <a id="startBtn" class="btn primary" href="bulktranscriber://start" hidden>Start helper</a>
+        <button id="stopBtn" hidden>Stop helper</button>
+      </div>
+      <div id="igState" class="muted igstate" hidden></div>
       <textarea id="links" rows="3" placeholder="Paste a YouTube channel or Instagram profile link, e.g. https://www.youtube.com/@channel or https://www.instagram.com/username/&#10;Playlists and single video links work too (one per line)."></textarea>
       <div class="row">
         <button id="findBtn" class="primary">Find videos</button>
@@ -130,25 +146,26 @@
       </div>
 
       <div id="setup" class="setup" hidden>
-        <strong>One-time setup: start the free helper on your computer</strong>
-        <p>Websites aren't allowed to download videos from YouTube or Instagram on their own, so a tiny helper does that part on your PC. Your transcription still happens here.</p>
+        <strong>One-time setup (2 minutes)</strong>
+        <p>Websites aren't allowed to download from YouTube or Instagram themselves, so a small free helper on your PC does that part. It only runs when you press <b>Start helper</b> and switches itself off after an hour unused.</p>
         <ol>
           <li>Install <a href="https://nodejs.org/" target="_blank" rel="noopener">Node.js</a> (LTS) if you don't have it.</li>
-          <li>Open a terminal (Windows: press Start, type <b>cmd</b>, Enter) and run:
-            <div class="cmd"><code id="cmdText">npx -y github:AfeefRaza/bulk-video-transcriber</code><button id="copyCmd">Copy</button></div>
+          <li>Open a terminal (Windows: press Start, type <b>cmd</b>, Enter), paste this and press Enter:
+            <div class="cmd"><code id="cmdText">npx -y github:AfeefRaza/bulk-video-transcriber --install</code><button id="copyCmd">Copy</button></div>
+            You can close the terminal afterwards.
           </li>
-          <li>Leave that window open and click <b>Find videos</b> again. If your browser asks to allow access to local devices, click Allow.</li>
+          <li>Back here, press <b>Start helper</b>. Your browser asks once whether to open it: tick "Always allow" and click Open.</li>
+          <li>For Instagram: install <a href="https://www.mozilla.org/firefox/" target="_blank" rel="noopener">Firefox</a> and log in to instagram.com there once. The helper uses that login automatically. Nothing else to do.</li>
         </ol>
         <details>
-          <summary>Instagram: how to get every video (login needed)</summary>
-          <p>Instagram only shows the latest few posts to people who aren't logged in. To get the whole profile:</p>
-          <ol>
-            <li>Log in to instagram.com in Chrome, Edge or Firefox.</li>
-            <li>Install the <b>Get cookies.txt LOCALLY</b> extension, open instagram.com, and click <b>Export</b>.</li>
-            <li>Rename the file to <code>cookies.txt</code> and put it in the <code>.bulk-transcriber</code> folder in your user folder (Windows: <code>C:\Users\YOUR-NAME\.bulk-transcriber\</code>).</li>
-            <li>Close the helper window and run the command again.</li>
-          </ol>
-          <p class="muted">Keep cookies.txt private: it logs into your account. Downloading lots of posts quickly can get an Instagram account rate-limited, so the helper goes slowly on purpose.</p>
+          <summary>How your Instagram account is protected</summary>
+          <ul>
+            <li>Read-only: it never likes, follows, comments, posts or messages.</li>
+            <li>Goes at a human pace: a few seconds between profile pages and 8 to 15 seconds between videos, one at a time.</li>
+            <li>Daily cap of 150 Instagram videos.</li>
+            <li>If Instagram signals "slow down" even once, the helper stops all Instagram requests for an hour.</li>
+            <li>Your login never leaves your PC.</li>
+          </ul>
         </details>
       </div>
 

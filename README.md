@@ -26,15 +26,18 @@ Then open http://localhost:8080.
 
 Open the **From a YouTube / Instagram link** tab and paste a channel or profile link (playlists and single video links work too, one per line).
 
-Websites can't download from YouTube or Instagram on their own, so this needs a small free helper running on your computer. It uses [yt-dlp](https://github.com/yt-dlp/yt-dlp), which it downloads automatically. Transcription still happens in the browser.
+Websites can't download from YouTube or Instagram on their own, so a small free helper on your PC does that part using [yt-dlp](https://github.com/yt-dlp/yt-dlp). Transcription still happens in the browser.
 
+**One-time setup**
 1. Install [Node.js](https://nodejs.org/) (LTS).
-2. In a terminal, run:
+2. In a terminal run:
    ```
-   npx -y github:AfeefRaza/bulk-video-transcriber
+   npx -y github:AfeefRaza/bulk-video-transcriber --install
    ```
-3. Leave it open, go back to the site, and click **Find videos**.
+3. On the site, press **Start helper** (tick "Always allow" the first time). It only runs when you press Start and turns itself off after an hour unused. There's a Stop button too.
 
-**Instagram:** Instagram only shows profiles to logged-in users. To get every video on a profile, export your instagram.com cookies with the *Get cookies.txt LOCALLY* browser extension, save the file as `cookies.txt` in `~/.bulk-transcriber/` (Windows: `C:\Users\YOU\.bulk-transcriber\`), then restart the helper. Keep that file private.
+**Instagram:** log in to instagram.com in Firefox once. The helper uses that login on your PC only, read-only. To protect your account it waits between requests like a person browsing, caps Instagram at 150 videos a day, and pauses Instagram for an hour if Instagram signals it wants you to slow down.
+
+To remove the Start button: `npx -y github:AfeefRaza/bulk-video-transcriber --uninstall`
 
 Only download content you have the right to use.

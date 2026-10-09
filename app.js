@@ -43,8 +43,8 @@ function setStatus(text, frac) {
 // ---------- audio extraction ----------
 async function fetchAudio(url) {
   let r;
-  try { r = await fetch(`${HELPER}/audio?url=${encodeURIComponent(url)}`); }
-  catch { throw new Error("Can't reach the helper. Make sure the helper window is still open."); }
+  try { r = await helperFetch(`/audio?url=${encodeURIComponent(url)}`); }
+  catch { throw new Error("Can't reach the helper. Press Start helper (Download from a link tab) and try again."); }
   if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Download failed'); }
   return r.arrayBuffer();
 }
@@ -232,9 +232,66 @@ $('copyCmd').addEventListener('click', (e) => {
   e.target.textContent = 'Copied'; setTimeout(() => (e.target.textContent = 'Copy'), 1200);
 });
 
+function helperFetch(p) { return fetch(HELPER + p, { headers: { 'X-Transcriber': '1' } }); }
+
+let helperInfo = null;
 async function helperUp() {
-  try { const r = await fetch(HELPER + '/health'); return r.ok; } catch { return false; }
+  try {
+    const r = await fetch(HELPER + '/health');
+    helperInfo = r.ok ? await r.json() : null;
+  } catch { helperInfo = null; }
+  renderHelper();
+  return !!helperInfo;
 }
+
+const IG_STATE = {
+  'logged-in': 'Instagram: using your Firefox login.',
+  'not-logged-in': 'Instagram: Firefox found, but you are not logged in to instagram.com there. YouTube works without it.',
+  'no-firefox': 'Instagram: needs Firefox with instagram.com logged in. YouTube works without it.',
+  'old-node': 'Instagram: please update Node.js to the latest LTS to use your Firefox login.',
+};
+function renderHelper() {
+  const on = !!helperInfo;
+  $('hDot').className = 'dot ' + (on ? 'on' : 'off');
+  $('hText').textContent = on ? 'Helper is running.' : 'Helper is off.';
+  $('startBtn').hidden = on;
+  $('stopBtn').hidden = !on;
+  $('igState').hidden = !on;
+  if (on) {
+    let s = IG_STATE[helperInfo.instagram] || '';
+    if (helperInfo.instagram === 'logged-in') s += ` ${helperInfo.igVideosToday} of ${helperInfo.igVideoLimit} daily Instagram videos used.`;
+    if (helperInfo.igPausedUntil) s += ` Paused for safety until ${new Date(helperInfo.igPausedUntil).toLocaleTimeString()}.`;
+    $('igState').textContent = s;
+    $('setup').hidden = true;
+  }
+}
+
+// Poll while the link tab is open so the status stays current.
+let pollTimer;
+function startPolling() {
+  clearInterval(pollTimer);
+  helperUp();
+  pollTimer = setInterval(() => { if (!$('tab-link').hidden) helperUp(); }, 4000);
+}
+document.querySelector('[data-tab=link]').addEventListener('click', startPolling);
+
+$('startBtn').addEventListener('click', () => {
+  $('hText').innerHTML = '<span class="spin"></span>Starting helper…';
+  let tries = 0;
+  const t = setInterval(async () => {
+    tries++;
+    if (await helperUp()) clearInterval(t);
+    else if (tries > 20) {
+      clearInterval(t);
+      $('hText').textContent = "Helper didn't start. Do the one-time setup below first.";
+      $('setup').hidden = false;
+    } else $('hText').innerHTML = '<span class="spin"></span>Starting helper…';
+  }, 1500);
+});
+$('stopBtn').addEventListener('click', async () => {
+  try { await helperFetch('/stop'); } catch {}
+  setTimeout(helperUp, 500);
+});
 
 $('findBtn').addEventListener('click', async () => {
   const links = $('links').value.split(/\s+/).filter((s) => /^https?:\/\//i.test(s));
@@ -243,7 +300,7 @@ $('findBtn').addEventListener('click', async () => {
   $('helperState').innerHTML = '<span class="spin"></span>Connecting to helper…';
   if (!(await helperUp())) {
     $('setup').hidden = false;
-    $('helperState').textContent = 'Helper not running. Follow the steps below, then click Find videos again.';
+    $('helperState').textContent = 'Press Start helper first (first time? do the setup below).';
     $('findBtn').disabled = false;
     return;
   }
@@ -253,7 +310,7 @@ $('findBtn').addEventListener('click', async () => {
   for (const link of links) {
     $('helperState').innerHTML = '<span class="spin"></span>Finding videos (big channels can take a minute)…';
     try {
-      const r = await fetch(`${HELPER}/list?url=${encodeURIComponent(link)}`);
+      const r = await helperFetch(`/list?url=${encodeURIComponent(link)}`);
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);
       found.push(...j.entries);
