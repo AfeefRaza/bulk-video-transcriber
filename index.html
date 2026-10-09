@@ -80,7 +80,6 @@
   .dot.off { background: var(--err); }
   a.btn { font: inherit; border-radius: 8px; padding: 8px 12px; text-decoration: none; display: inline-block; }
   a.btn.primary { background: var(--accent); color: #fff; font-weight: 600; }
-  .igstate { margin: -4px 0 10px; }
   .cmd { display: flex; gap: 8px; align-items: center; margin-top: 6px; background: var(--panel); border: 1px solid var(--border);
     border-radius: 8px; padding: 6px 6px 6px 10px; }
   .cmd code { flex: 1; overflow-wrap: anywhere; }
@@ -134,11 +133,15 @@
     <div id="tab-link" hidden>
       <div class="helperbar">
         <span class="dot" id="hDot"></span>
-        <span id="hText" class="htext">Checking helper…</span>
+        <span id="hText" class="htext">YouTube helper: checking…</span>
         <a id="startBtn" class="btn primary" href="bulktranscriber://start" hidden>Start helper</a>
         <button id="stopBtn" hidden>Stop helper</button>
       </div>
-      <div id="igState" class="muted igstate" hidden></div>
+      <div class="helperbar">
+        <span class="dot" id="eDot"></span>
+        <span id="eText" class="htext">Instagram extension: checking…</span>
+        <button id="extHowBtn" hidden>How to install</button>
+      </div>
       <textarea id="links" rows="3" placeholder="Paste a YouTube channel or Instagram profile link, e.g. https://www.youtube.com/@channel or https://www.instagram.com/username/&#10;Playlists and single video links work too (one per line)."></textarea>
       <div class="row">
         <button id="findBtn" class="primary">Find videos</button>
@@ -146,8 +149,8 @@
       </div>
 
       <div id="setup" class="setup" hidden>
-        <strong>One-time setup (2 minutes)</strong>
-        <p>Websites aren't allowed to download from YouTube or Instagram themselves, so a small free helper on your PC does that part. It only runs when you press <b>Start helper</b> and switches itself off after an hour unused.</p>
+        <strong>YouTube: one-time setup (2 minutes)</strong>
+        <p>Websites aren't allowed to download from YouTube themselves, so a small free helper on your PC does that part. It only runs when you press <b>Start helper</b> and switches itself off after an hour unused.</p>
         <ol>
           <li>Install <a href="https://nodejs.org/" target="_blank" rel="noopener">Node.js</a> (LTS) if you don't have it.</li>
           <li>Open a terminal (Windows: press Start, type <b>cmd</b>, Enter), paste this and press Enter:
@@ -155,16 +158,27 @@
             You can close the terminal afterwards.
           </li>
           <li>Back here, press <b>Start helper</b>. Your browser asks once whether to open it: tick "Always allow" and click Open.</li>
-          <li>For Instagram: install <a href="https://www.mozilla.org/firefox/" target="_blank" rel="noopener">Firefox</a> and log in to instagram.com there once. The helper uses that login automatically. Nothing else to do.</li>
+        </ol>
+      </div>
+
+      <div id="extSetup" class="setup" hidden>
+        <strong>Instagram: install the extension (1 minute, Chrome / Edge / Brave)</strong>
+        <p>The extension lets this site read Instagram profiles using the Instagram login you already have in Chrome. Nothing else to install.</p>
+        <ol>
+          <li><a href="bulk-transcriber-extension.zip" download>Download the extension</a> and unzip it (right-click, Extract All).</li>
+          <li>Open this address in a new tab: <div class="cmd"><code id="extUrl">chrome://extensions</code><button id="copyExt">Copy</button></div></li>
+          <li>Turn on <b>Developer mode</b> (top right), click <b>Load unpacked</b> and pick the unzipped folder.</li>
+          <li>Make sure you're logged in to instagram.com in this browser, then reload this page.</li>
         </ol>
         <details>
           <summary>How your Instagram account is protected</summary>
           <ul>
             <li>Read-only: it never likes, follows, comments, posts or messages.</li>
-            <li>Goes at a human pace: a few seconds between profile pages and 8 to 15 seconds between videos, one at a time.</li>
-            <li>Daily cap of 150 Instagram videos.</li>
-            <li>If Instagram signals "slow down" even once, the helper stops all Instagram requests for an hour.</li>
-            <li>Your login never leaves your PC.</li>
+            <li>It works through a normal instagram.com tab, exactly like you browsing.</li>
+            <li>Human pace: 4 to 8 seconds between profile pages and 8 to 15 seconds between videos, one at a time.</li>
+            <li>Daily caps: 150 videos and 80 profile pages.</li>
+            <li>If Instagram signals "slow down" even once, it stops all Instagram requests for an hour.</li>
+            <li>Your login never leaves your browser.</li>
           </ul>
         </details>
       </div>

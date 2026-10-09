@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Bulk Video Transcriber: Instagram",
+  "version": "1.0.0",
+  "description": "Lets the Bulk Video Transcriber website list and transcribe Instagram videos using your own Chrome login. Read-only and paced to protect your account.",
+  "permissions": ["scripting", "storage"],
+  "host_permissions": [
+    "https://www.instagram.com/*",
+    "https://*.cdninstagram.com/*",
+    "https://*.fbcdn.net/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://afeefraza.github.io/bulk-video-transcriber/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": { "default_title": "Open Bulk Video Transcriber" }
+}

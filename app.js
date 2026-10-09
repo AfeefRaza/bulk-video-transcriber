@@ -41,13 +41,55 @@ function setStatus(text, frac) {
 }
 
 // ---------- audio extraction ----------
-async function fetchAudio(url) {
+async function fetchAudio(job, forceVideo = false) {
+  if (job.via === 'ext') {
+    if (!(await extPresent())) throw new Error('The Instagram extension is not installed or was turned off.');
+    return extCall('audio', { url: job.url, forceVideo });
+  }
   let r;
-  try { r = await helperFetch(`/audio?url=${encodeURIComponent(url)}`); }
-  catch { throw new Error("Can't reach the helper. Press Start helper (Download from a link tab) and try again."); }
+  try { r = await helperFetch(`/audio?url=${encodeURIComponent(job.url)}`); }
+  catch { throw new Error("Can't reach the YouTube helper. Press Start helper and try again."); }
   if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Download failed'); }
   return r.arrayBuffer();
 }
+
+// ---------- Instagram extension bridge ----------
+let extVersion = null;
+let extPing = null;
+function extPresent() {
+  if (extVersion) return Promise.resolve(true);
+  if (!extPing) {
+    extPing = new Promise((res) => {
+      const on = (e) => { if (e.source === window && e.data && e.data.__bt === 'hello') { extVersion = e.data.version; res(true); } };
+      window.addEventListener('message', on);
+      window.postMessage({ __bt: 'ping' }, location.origin);
+      setTimeout(() => { window.removeEventListener('message', on); extPing = null; res(!!extVersion); }, 600);
+    });
+  }
+  return extPing;
+}
+window.addEventListener('message', (e) => {
+  if (e.source === window && e.data && e.data.__bt === 'hello') extVersion = e.data.version;
+});
+
+let extSeq = 0;
+function extCall(type, payload, onProgress) {
+  const id = 'x' + (++extSeq);
+  return new Promise((resolve, reject) => {
+    const on = (e) => {
+      const m = e.data;
+      if (e.source !== window || !m || m.id !== id) return;
+      if (m.__bt === 'progress') { onProgress && onProgress(m.text); return; }
+      if (m.__bt !== 'res') return;
+      window.removeEventListener('message', on);
+      m.ok ? resolve(m.buffer || m.data) : reject(new Error(m.error));
+    };
+    window.addEventListener('message', on);
+    window.postMessage({ __bt: 'req', id, type, payload }, location.origin);
+  });
+}
+
+const isInstagramLink = (u) => { try { return /(^|\.)instagram\.com$/.test(new URL(u).hostname); } catch { return false; } };
 
 async function decodeAudio(buf) {
   const ctx = new AudioContext({ sampleRate: 16000 });
@@ -141,8 +183,15 @@ async function run() {
     let audio, buf;
     try {
       if (job.url) setStatus(`Downloading audio for ${job.title}…`, null);
-      buf = job.url ? await fetchAudio(job.url) : await job.file.arrayBuffer();
-      audio = await decodeAudio(buf);
+      buf = job.url ? await fetchAudio(job) : await job.file.arrayBuffer();
+      try {
+        audio = await decodeAudio(buf);
+      } catch (err) {
+        if (job.via !== 'ext') throw err;
+        // Instagram's audio-only track didn't decode here: fall back to the full video file.
+        buf = await fetchAudio(job, true);
+        audio = await decodeAudio(buf);
+      }
     } catch (err) {
       job.status = 'error';
       job.text = !buf ? "Couldn't download this video: " + err.message
@@ -244,34 +293,42 @@ async function helperUp() {
   return !!helperInfo;
 }
 
-const IG_STATE = {
-  'logged-in': 'Instagram: using your Firefox login.',
-  'not-logged-in': 'Instagram: Firefox found, but you are not logged in to instagram.com there. YouTube works without it.',
-  'no-firefox': 'Instagram: needs Firefox with instagram.com logged in. YouTube works without it.',
-  'old-node': 'Instagram: please update Node.js to the latest LTS to use your Firefox login.',
-};
 function renderHelper() {
   const on = !!helperInfo;
   $('hDot').className = 'dot ' + (on ? 'on' : 'off');
-  $('hText').textContent = on ? 'Helper is running.' : 'Helper is off.';
+  $('hText').textContent = on ? 'YouTube helper is running.' : 'YouTube helper is off.';
   $('startBtn').hidden = on;
   $('stopBtn').hidden = !on;
-  $('igState').hidden = !on;
-  if (on) {
-    let s = IG_STATE[helperInfo.instagram] || '';
-    if (helperInfo.instagram === 'logged-in') s += ` ${helperInfo.igVideosToday} of ${helperInfo.igVideoLimit} daily Instagram videos used.`;
-    if (helperInfo.igPausedUntil) s += ` Paused for safety until ${new Date(helperInfo.igPausedUntil).toLocaleTimeString()}.`;
-    $('igState').textContent = s;
-    $('setup').hidden = true;
-  }
+  if (on) $('setup').hidden = true;
 }
+
+let extBusy = false;
+async function extStatus() {
+  const on = await extPresent();
+  $('eDot').className = 'dot ' + (on ? 'on' : 'off');
+  $('extHowBtn').hidden = on;
+  if (!on) { $('eText').textContent = 'Instagram extension is not installed.'; return; }
+  $('extSetup').hidden = true;
+  if (extBusy) return;
+  try {
+    const s = await extCall('status');
+    let t = `Instagram extension is on. ${s.videosToday} of ${s.videoLimit} daily Instagram videos used.`;
+    if (s.pausedUntil) t += ` Paused for safety until ${new Date(s.pausedUntil).toLocaleTimeString()}.`;
+    $('eText').textContent = t;
+  } catch { $('eText').textContent = 'Instagram extension is on.'; }
+}
+$('extHowBtn').addEventListener('click', () => { $('extSetup').hidden = !$('extSetup').hidden; });
+$('copyExt').addEventListener('click', (e) => {
+  navigator.clipboard.writeText($('extUrl').textContent);
+  e.target.textContent = 'Copied'; setTimeout(() => (e.target.textContent = 'Copy'), 1200);
+});
 
 // Poll while the link tab is open so the status stays current.
 let pollTimer;
 function startPolling() {
   clearInterval(pollTimer);
-  helperUp();
-  pollTimer = setInterval(() => { if (!$('tab-link').hidden) helperUp(); }, 4000);
+  helperUp(); extStatus();
+  pollTimer = setInterval(() => { if (!$('tab-link').hidden) { helperUp(); extStatus(); } }, 4000);
 }
 document.querySelector('[data-tab=link]').addEventListener('click', startPolling);
 
@@ -297,25 +354,37 @@ $('findBtn').addEventListener('click', async () => {
   const links = $('links').value.split(/\s+/).filter((s) => /^https?:\/\//i.test(s));
   if (!links.length) { $('helperState').textContent = 'Paste a link that starts with https://'; return; }
   $('findBtn').disabled = true;
-  $('helperState').innerHTML = '<span class="spin"></span>Connecting to helper…';
-  if (!(await helperUp())) {
-    $('setup').hidden = false;
-    $('helperState').textContent = 'Press Start helper first (first time? do the setup below).';
-    $('findBtn').disabled = false;
-    return;
-  }
-  $('setup').hidden = true;
   found = [];
   const titles = [], errors = [];
   for (const link of links) {
-    $('helperState').innerHTML = '<span class="spin"></span>Finding videos (big channels can take a minute)…';
     try {
-      const r = await helperFetch(`/list?url=${encodeURIComponent(link)}`);
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error);
+      let j;
+      if (isInstagramLink(link)) {
+        if (!(await extPresent())) {
+          $('extSetup').hidden = false;
+          throw new Error('Instagram needs the extension. Install it (steps below), then reload this page.');
+        }
+        $('helperState').innerHTML = '<span class="spin"></span>Reading Instagram profile (slowly, to protect your account)…';
+        extBusy = true;
+        try {
+          j = await extCall('list', { url: link }, (t) => { $('helperState').innerHTML = '<span class="spin"></span>'; $('helperState').append(t); });
+        } finally { extBusy = false; }
+        j.entries.forEach((e) => (e.via = 'ext'));
+      } else {
+        $('helperState').innerHTML = '<span class="spin"></span>Connecting to YouTube helper…';
+        if (!(await helperUp())) {
+          $('setup').hidden = false;
+          throw new Error('Press Start helper first (first time? do the setup below).');
+        }
+        $('helperState').innerHTML = '<span class="spin"></span>Finding videos (big channels can take a minute)…';
+        const r = await helperFetch(`/list?url=${encodeURIComponent(link)}`);
+        j = await r.json();
+        if (!r.ok) throw new Error(j.error);
+        j.entries.forEach((e) => (e.via = 'helper'));
+      }
       found.push(...j.entries);
       if (j.title) titles.push(j.title);
-    } catch (e) { errors.push(`${link}: ${e.message}`); }
+    } catch (e) { errors.push(links.length > 1 ? `${link}: ${e.message}` : e.message); }
   }
   const seen = new Set();
   found = found.filter((v) => !seen.has(v.url) && seen.add(v.url));
@@ -349,7 +418,7 @@ $('selAll').addEventListener('change', (e) => {
 });
 $('queueBtn').addEventListener('click', () => {
   for (const v of selectedFound()) {
-    const job = { id: nextId++, url: v.url, title: v.title, status: 'queued', text: '', chunks: [] };
+    const job = { id: nextId++, url: v.url, title: v.title, via: v.via, status: 'queued', text: '', chunks: [] };
     job.el = renderCard(job);
     $('list').appendChild(job.el);
     jobs.push(job);

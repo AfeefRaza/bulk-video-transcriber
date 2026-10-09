@@ -24,19 +24,28 @@ Then open http://localhost:8080.
 
 ## Transcribe a whole YouTube channel or Instagram profile
 
-Open the **From a YouTube / Instagram link** tab and paste a channel or profile link (playlists and single video links work too, one per line).
+Open the **From a YouTube / Instagram link** tab and paste a channel or profile link (playlists and single video/reel links work too, one per line). The site sends Instagram links to the extension and YouTube links to the helper automatically. Transcription always happens in the browser.
 
-Websites can't download from YouTube or Instagram on their own, so a small free helper on your PC does that part using [yt-dlp](https://github.com/yt-dlp/yt-dlp). Transcription still happens in the browser.
+### Instagram: Chrome extension
 
-**One-time setup**
+The extension (in [`extension/`](extension/)) lets the site read Instagram profiles using the login you already have in Chrome. Works in Chrome, Edge and Brave.
+
+1. Download [bulk-transcriber-extension.zip](https://afeefraza.github.io/bulk-video-transcriber/bulk-transcriber-extension.zip) and unzip it.
+2. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick the unzipped folder.
+3. Be logged in to instagram.com in that browser, then reload the site.
+
+To protect your account it is read-only (never likes, follows, comments or posts), works through a normal instagram.com tab, waits 4 to 8 seconds between profile pages and 8 to 15 seconds between videos, caps itself at 150 videos and 80 profile pages a day, and stops all Instagram requests for an hour if Instagram signals it wants you to slow down.
+
+### YouTube: local helper
+
+Websites can't download from YouTube on their own, so a small free helper on your PC does that part using [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+
 1. Install [Node.js](https://nodejs.org/) (LTS).
 2. In a terminal run:
    ```
    npx -y github:AfeefRaza/bulk-video-transcriber --install
    ```
 3. On the site, press **Start helper** (tick "Always allow" the first time). It only runs when you press Start and turns itself off after an hour unused. There's a Stop button too.
-
-**Instagram:** log in to instagram.com in Firefox once. The helper uses that login on your PC only, read-only. To protect your account it waits between requests like a person browsing, caps Instagram at 150 videos a day, and pauses Instagram for an hour if Instagram signals it wants you to slow down.
 
 To remove the Start button: `npx -y github:AfeefRaza/bulk-video-transcriber --uninstall`
 
