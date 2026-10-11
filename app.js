@@ -168,10 +168,24 @@ function updateSummary() {
 }
 
 // ---------- queue ----------
+// Downloads the next few linked videos while the current one is being transcribed.
+const PREFETCH = 3;
+function prefetch() {
+  let n = 0;
+  for (const j of jobs) {
+    if (j.status !== 'queued' || !j.url) continue;
+    if (!j.dl) {
+      j.dl = fetchAudio(j);
+      j.dl.catch(() => {}); // the error is reported when the job's turn comes
+    }
+    if (++n >= PREFETCH) break;
+  }
+}
 async function run() {
   if (running) return;
   running = true;
   const model = $('model').value;
+  prefetch(); // start downloading videos while the model loads
   if (!modelReady) {
     setStatus('Preparing model…', 0);
     await call({ type: 'load', model }, 'load');
@@ -179,11 +193,13 @@ async function run() {
   let job;
   while ((job = jobs.find((j) => j.status === 'queued'))) {
     const t0 = performance.now();
+    prefetch();
     job.status = 'decoding'; updateCard(job);
     let audio, buf;
     try {
       if (job.url) setStatus(`Downloading audio for ${job.title}…`, null);
-      buf = job.url ? await fetchAudio(job) : await job.file.arrayBuffer();
+      buf = job.url ? await job.dl : await job.file.arrayBuffer();
+      job.dl = null;
       try {
         audio = await decodeAudio(buf);
       } catch (err) {

@@ -399,12 +399,13 @@ async function list(u, skipShorts) {
   if (!tabs) return listOne(u);
   if (skipShorts) tabs = tabs.filter((t) => !t.endsWith('/shorts'));
   let title = '', entries = [], lastErr;
-  for (const t of tabs) {
-    try {
-      const r = await listOne(t);
-      title = title || r.title.replace(/ - (Videos|Shorts|Live)$/, '');
-      entries = entries.concat(r.entries);
-    } catch (e) { lastErr = e; } // channel may not have every tab
+  // Fetch Videos / Shorts / Live at the same time.
+  const results = await Promise.allSettled(tabs.map(listOne));
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      title = title || r.value.title.replace(/ - (Videos|Shorts|Live)$/, '');
+      entries = entries.concat(r.value.entries);
+    } else lastErr = r.reason; // channel may not have every tab
   }
   if (!entries.length && lastErr) throw lastErr;
   const seen = new Set();
@@ -483,7 +484,13 @@ const server = http.createServer(async (req, res) => {
       if (req.destroyed) { igDone(); return; }
     }
     console.log('Fetching audio', target);
-    const p = spawn(YTDLP, [...ytArgs(target), '--no-playlist', '--playlist-items', '1', '-f', 'bestaudio[ext=m4a]/bestaudio/best[ext=mp4]/best', '-o', '-', '--', target], { windowsHide: true });
+    // Speech only needs low-bitrate audio: the ~48 kbps original-language track is a third of the
+    // size of the default one. Never pick YouTube's auto-dubbed tracks.
+    const fmt = ig ? 'bestaudio[ext=m4a]/bestaudio/best[ext=mp4]/best'
+      : 'bestaudio[ext=m4a][abr<=70][format_note!*=?dubbed]/worstaudio[ext=m4a][format_note!*=?dubbed]/'
+        + 'bestaudio[ext=m4a][format_note!*=?dubbed]/bestaudio[format_note!*=?dubbed]/bestaudio/best';
+    const p = spawn(YTDLP, [...ytArgs(target), '--no-playlist', '--playlist-items', '1', '-f', fmt,
+      '--http-chunk-size', '10M', '-o', '-', '--', target], { windowsHide: true });
     let err = '', started = false;
     p.stderr.on('data', (d) => (err += d));
     p.stdout.once('data', () => {
