@@ -425,6 +425,7 @@ function cors(req, res) {
 }
 
 function json(res, code, obj) {
+  if (res.headersSent || res.writableEnded) { if (!res.writableEnded) res.destroy(); return; }
   res.writeHead(code, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(obj));
 }
@@ -497,14 +498,19 @@ const server = http.createServer(async (req, res) => {
       started = true;
       res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
     });
-    p.stdout.pipe(res);
+    // Don't let the pipe end the response: if yt-dlp fails before sending any audio we still
+    // need to reply with the error.
+    p.stdout.pipe(res, { end: false });
+    p.on('error', (e) => { err += String(e); });
     p.on('close', (code) => {
       if (ig) igDone();
       if (!started) {
         let msg = cleanErr(err) || 'No audio';
         if (ig && PUSHBACK.test(err)) msg = igPushback(err).message;
+        console.log('  failed:', msg);
         json(res, 500, { error: msg });
       } else if (code !== 0) res.destroy();
+      else res.end();
     });
     req.on('close', () => { if (!res.writableEnded) p.kill(); });
     return;
@@ -512,6 +518,9 @@ const server = http.createServer(async (req, res) => {
 
   json(res, 404, { error: 'Not found' });
 });
+
+// One bad video must never take the whole helper down mid-batch.
+process.on('uncaughtException', (e) => console.log('Unexpected error (helper kept running):', e && e.stack || e));
 
 server.on('error', (e) => {
   if (e.code === 'EADDRINUSE') { console.log('Helper is already running.'); process.exit(0); }
