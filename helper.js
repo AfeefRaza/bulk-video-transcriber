@@ -18,7 +18,7 @@ const os = require('os');
 const path = require('path');
 const { spawn, execFileSync } = require('child_process');
 
-const PORT = 8787;
+const PORT = +process.env.BT_PORT || 8787;
 const HOME = path.join(os.homedir(), '.bulk-transcriber');
 const SITE = 'https://afeefraza.github.io/bulk-video-transcriber/';
 const ALLOWED_ORIGINS = [/^https:\/\/afeefraza\.github\.io$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/];
@@ -392,11 +392,12 @@ async function igList(username) {
   return { title: `@${username}${note}`, entries };
 }
 
-async function list(u) {
+async function list(u, skipShorts) {
   const ig = igUsername(u);
   if (ig) return igList(ig);
-  const tabs = channelTabs(u);
+  let tabs = channelTabs(u);
   if (!tabs) return listOne(u);
+  if (skipShorts) tabs = tabs.filter((t) => !t.endsWith('/shorts'));
   let title = '', entries = [], lastErr;
   for (const t of tabs) {
     try {
@@ -465,7 +466,7 @@ const server = http.createServer(async (req, res) => {
     if (!target) return json(res, 400, { error: 'Invalid link' });
     console.log('Listing', target);
     try {
-      const r = await list(target);
+      const r = await list(target, q.searchParams.get('shorts') === '0');
       console.log(`  found ${r.entries.length} videos`);
       return json(res, 200, r);
     } catch (e) {

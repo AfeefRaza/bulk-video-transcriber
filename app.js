@@ -276,6 +276,8 @@ document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () 
 }));
 
 let found = [];
+try { $('skipShorts').checked = localStorage.getItem('skipShorts') === '1'; } catch {}
+$('skipShorts').addEventListener('change', (e) => { try { localStorage.setItem('skipShorts', e.target.checked ? '1' : '0'); } catch {} });
 $('copyCmd').addEventListener('click', (e) => {
   navigator.clipboard.writeText($('cmdText').textContent);
   e.target.textContent = 'Copied'; setTimeout(() => (e.target.textContent = 'Copy'), 1200);
@@ -377,9 +379,11 @@ $('findBtn').addEventListener('click', async () => {
           throw new Error('Press Start helper first (first time? do the setup below).');
         }
         $('helperState').innerHTML = '<span class="spin"></span>Finding videos (big channels can take a minute)…';
-        const r = await helperFetch(`/list?url=${encodeURIComponent(link)}`);
+        const skip = $('skipShorts').checked;
+        const r = await helperFetch(`/list?url=${encodeURIComponent(link)}${skip ? '&shorts=0' : ''}`);
         j = await r.json();
         if (!r.ok) throw new Error(j.error);
+        if (skip) j.entries = j.entries.filter((e) => !/youtube\.com\/shorts\//.test(e.url));
         j.entries.forEach((e) => (e.via = 'helper'));
       }
       found.push(...j.entries);
